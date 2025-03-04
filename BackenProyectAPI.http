@@ -1,0 +1,6 @@
+@BackenProyectAPI_HostAddress = http://localhost:5117
+
+GET {{BackenProyectAPI_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
