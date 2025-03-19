@@ -13,5 +13,6 @@ namespace BackendProjectAPI.Services
         Task<Usuario> ActualizarUsuario(string id, Usuario usuario);
         Task<bool> EliminarUsuario(string id);
         Task<Usuario> LoginUsuario(string correo, string password);
+        Task<Usuario> ActualizarClasificacionYPuntaje(Usuario usuario);
     }
 }

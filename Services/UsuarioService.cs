@@ -21,6 +21,9 @@ namespace BackendProjectAPI.Services
         {
             try
             {
+                usuario.Puntaje = CalcularPuntaje(usuario);
+                usuario.Clasificacion = ClasificarUsuario(usuario.FechaUltimoAcceso ?? DateTime.UtcNow);
+
                 await _usuarios.InsertOneAsync(usuario);
                 return usuario;
             }
@@ -34,7 +37,7 @@ namespace BackendProjectAPI.Services
         {
             try
             {
-                return await _usuarios.Find(usuario => true).ToListAsync();
+                return await _usuarios.Find(_ => true).ToListAsync();
             }
             catch (Exception ex)
             {
@@ -44,40 +47,34 @@ namespace BackendProjectAPI.Services
 
         public async Task<Usuario> ConsultarUsuario(string id)
         {
-            if (ObjectId.TryParse(id, out ObjectId objectId))
-            {
-                return await _usuarios.Find(usuario => usuario.Id == objectId).FirstOrDefaultAsync();
-            }
-            return null;
+            if (!ObjectId.TryParse(id, out ObjectId objectId))
+                return null;
+
+            return await _usuarios.Find(usuario => usuario.Id == objectId).FirstOrDefaultAsync();
         }
 
         public async Task<Usuario> ActualizarUsuario(string id, Usuario usuario)
         {
-            if (ObjectId.TryParse(id, out ObjectId objectId))
-            {
-                usuario.Id = objectId;
+            if (!ObjectId.TryParse(id, out ObjectId objectId))
+                return null;
 
-                await _usuarios.ReplaceOneAsync(u => u.Id == objectId, usuario);
-                return usuario;
-            }
-            return null;
+            usuario.Id = objectId;
+
+            return await ActualizarClasificacionYPuntaje(usuario);
         }
 
         public async Task<bool> EliminarUsuario(string id)
         {
-            if (ObjectId.TryParse(id, out ObjectId objectId))
-            {
-                var result = await _usuarios.DeleteOneAsync(usuario => usuario.Id == objectId);
-                return result.DeletedCount > 0;
-            }
-            return false;
+            if (!ObjectId.TryParse(id, out ObjectId objectId))
+                return false;
+
+            var result = await _usuarios.DeleteOneAsync(usuario => usuario.Id == objectId);
+            return result.DeletedCount > 0;
         }
 
         public async Task<Usuario> FindUsuarioByCorreoAsync(string correo)
         {
-            var usuario = await _usuarios.Find(u => u.Correo == correo).FirstOrDefaultAsync();
-
-            return usuario;
+            return await _usuarios.Find(u => u.Correo == correo).FirstOrDefaultAsync();
         }
 
         public async Task<Usuario> LoginUsuario(string correo, string password)
@@ -116,6 +113,48 @@ namespace BackendProjectAPI.Services
             await _usuarios.ReplaceOneAsync(u => u.Id == usuario.Id, usuario);
 
             return usuario;
+        }
+
+        public async Task<Usuario> ActualizarClasificacionYPuntaje(Usuario usuario)
+        {
+            usuario.FechaUltimoAcceso ??= DateTime.UtcNow;
+            usuario.Clasificacion = ClasificarUsuario(usuario.FechaUltimoAcceso.Value);
+            usuario.Puntaje = CalcularPuntaje(usuario);
+
+            await _usuarios.ReplaceOneAsync(u => u.Id == usuario.Id, usuario);
+
+            return usuario;
+        }
+
+        private string ClasificarUsuario(DateTime fechaUltimoAcceso)
+        {
+            var horasDesdeUltimoAcceso = (DateTime.UtcNow - fechaUltimoAcceso).TotalHours;
+
+            return horasDesdeUltimoAcceso switch
+            {
+                <= 12 => "Hechicero",
+                <= 48 => "Luchador",
+                <= 168 => "Explorador",
+                _ => "Olvidado"
+            };
+        }
+
+        private int CalcularPuntaje(Usuario usuario)
+        {
+            int puntaje = 0;
+
+            int longitudNombre = usuario.Nombre.Length;
+            puntaje += longitudNombre > 10 ? 20 : (longitudNombre >= 5 ? 10 : 0);
+
+            string dominio = usuario.Correo.Split('@').Length > 1 ? usuario.Correo.Split('@')[1] : "";
+            puntaje += dominio switch
+            {
+                "gmail.com" => 40,
+                "hotmail.com" => 20,
+                _ => 10
+            };
+
+            return puntaje;
         }
     }
 }
